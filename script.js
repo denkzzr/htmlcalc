@@ -1,6 +1,6 @@
 /**
  * Calculator — чистый JavaScript
- * Этап 2: базовая логика вычислений
+ * Этап 3: дополнительные функции и обработка ошибок
  */
 
 // ── Состояние ──────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ function inputDot() {
     updateDisplay();
     return;
   }
-  if (state.current.includes('.')) return;
+  if (state.current.includes('.')) return; // защита от двойной точки
   state.current += '.';
   updateDisplay();
 }
@@ -102,8 +102,17 @@ function calculate(a, b, op) {
     case '+': return a + b;
     case '-': return a - b;
     case '*': return a * b;
-    case '/': return a / b;
-    default:  return b;
+    case '/':
+      if (b === 0) {
+        // обработка деления на ноль
+        state.current = 'Ошибка';
+        updateDisplay();
+        setExpression('Деление на 0');
+        resetOperators();
+        return null;
+      }
+      return a / b;
+    default: return b;
   }
 }
 
@@ -136,6 +145,51 @@ function handleEqual() {
   resetOperators();
 }
 
+// ── Очистка ────────────────────────────────────────────────────────────────
+function clearAll() {
+  state.current = '0';
+  state.previous = null;
+  state.operator = null;
+  state.waitingForSecond = false;
+  state.justCalculated = false;
+  setExpression('');
+  updateDisplay();
+  resetOperators();
+}
+
+// ── Backspace ──────────────────────────────────────────────────────────────
+function backspace() {
+  if (state.justCalculated || state.waitingForSecond) return;
+  if (state.current.length === 1 || state.current === 'Ошибка') {
+    state.current = '0';
+  } else {
+    state.current = state.current.slice(0, -1);
+    if (state.current === '-') state.current = '0';
+  }
+  updateDisplay();
+}
+
+// ── Смена знака ────────────────────────────────────────────────────────────
+function toggleSign() {
+  if (state.current === '0' || state.current === 'Ошибка') return;
+  state.current = state.current.startsWith('-')
+    ? state.current.slice(1)
+    : '-' + state.current;
+  updateDisplay();
+}
+
+// ── Процент ────────────────────────────────────────────────────────────────
+function handlePercent() {
+  const val = parseFloat(state.current);
+  if (isNaN(val)) return;
+  if (state.previous && state.operator) {
+    state.current = formatNumber((parseFloat(state.previous) * val) / 100);
+  } else {
+    state.current = formatNumber(val / 100);
+  }
+  updateDisplay();
+}
+
 // ── Обработка кликов по кнопкам ───────────────────────────────────────────
 document.querySelector('.buttons').addEventListener('click', (e) => {
   const btn = e.target.closest('.btn');
@@ -149,6 +203,9 @@ document.querySelector('.buttons').addEventListener('click', (e) => {
     case 'dot':      inputDot();            break;
     case 'operator': chooseOperator(value); break;
     case 'equal':    handleEqual();         break;
+    case 'clear':    clearAll();            break;
+    case 'sign':     toggleSign();          break;
+    case 'percent':  handlePercent();       break;
   }
 });
 
@@ -161,6 +218,9 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === '*')  chooseOperator('*');
   else if (e.key === '/') { e.preventDefault(); chooseOperator('/'); }
   else if (e.key === 'Enter' || e.key === '=') handleEqual();
+  else if (e.key === 'Backspace') backspace();
+  else if (e.key === 'Escape')    clearAll();
+  else if (e.key === '%')         handlePercent();
 });
 
 // ── Инициализация ─────────────────────────────────────────────────────────
