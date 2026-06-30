@@ -1,32 +1,38 @@
 /**
  * Calculator — чистый JavaScript
- * Этап 3: дополнительные функции и обработка ошибок
+ * Этапы 2 и 3: базовая логика + доп. функции, обработка ошибок, история.
  */
 
 // ── Состояние ──────────────────────────────────────────────────────────────
 const state = {
-  current: '0',
-  previous: null,
-  operator: null,
-  waitingForSecond: false,
-  justCalculated: false,
+  current: '0',       // текущее число на дисплее
+  previous: null,     // предыдущее число
+  operator: null,     // текущий оператор
+  waitingForSecond: false, // ждём ввода второго операнда
+  justCalculated: false,   // только что нажали «=»
+  history: [],        // история вычислений
 };
 
 // ── Элементы DOM ───────────────────────────────────────────────────────────
-const resultEl     = document.getElementById('result');
-const expressionEl = document.getElementById('expression');
+const resultEl      = document.getElementById('result');
+const expressionEl  = document.getElementById('expression');
+const historyEl     = document.getElementById('history');
+const historyToggle = document.getElementById('historyToggle');
 
 // ── Утилиты ────────────────────────────────────────────────────────────────
 function formatNumber(value) {
   const num = parseFloat(value);
-  if (!isFinite(num)) return value;
-  return parseFloat(num.toPrecision(10)).toString();
+  if (!isFinite(num)) return value; // «Ошибка» и т.п.
+  // Ограничиваем длину, убираем лишние нули после запятой
+  const str = parseFloat(num.toPrecision(10)).toString();
+  return str;
 }
 
 function updateDisplay() {
   const text = formatNumber(state.current);
   resultEl.textContent = text;
 
+  // Адаптивный размер шрифта
   resultEl.classList.remove('small', 'xsmall');
   if (text.length > 9) resultEl.classList.add('xsmall');
   else if (text.length > 6) resultEl.classList.add('small');
@@ -42,6 +48,7 @@ function inputDigit(digit) {
     state.current = digit;
     state.waitingForSecond = false;
   } else if (state.justCalculated) {
+    // После «=» начинаем новое число
     state.current = digit;
     state.justCalculated = false;
     state.operator = null;
@@ -51,7 +58,7 @@ function inputDigit(digit) {
     if (state.current === '0' && digit !== '.') {
       state.current = digit;
     } else {
-      if (state.current.length >= 12) return;
+      if (state.current.length >= 12) return; // лимит символов
       state.current += digit;
     }
   }
@@ -66,13 +73,14 @@ function inputDot() {
     updateDisplay();
     return;
   }
-  if (state.current.includes('.')) return; // защита от двойной точки
+  if (state.current.includes('.')) return; // не допускаем вторую точку
   state.current += '.';
   updateDisplay();
 }
 
 // ── Выбор оператора ────────────────────────────────────────────────────────
 function chooseOperator(op) {
+  // Подсветить активный оператор
   document.querySelectorAll('.btn--op').forEach(b => b.classList.remove('active'));
   const btn = document.querySelector(`[data-value="${op}"]`);
   if (btn) btn.classList.add('active');
@@ -80,6 +88,7 @@ function chooseOperator(op) {
   const symbols = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 
   if (state.operator && !state.waitingForSecond) {
+    // Промежуточное вычисление при цепочке операций
     const result = calculate(parseFloat(state.previous), parseFloat(state.current), state.operator);
     if (result === null) return;
     state.current = formatNumber(result);
@@ -104,7 +113,6 @@ function calculate(a, b, op) {
     case '*': return a * b;
     case '/':
       if (b === 0) {
-        // обработка деления на ноль
         state.current = 'Ошибка';
         updateDisplay();
         setExpression('Деление на 0');
@@ -133,9 +141,12 @@ function handleEqual() {
 
   const expression = `${formatNumber(a)} ${symbols[state.operator]} ${formatNumber(b)}`;
   const result = calculate(a, b, state.operator);
-  if (result === null) return;
+  if (result === null) return; // ошибка уже показана
 
   const resultStr = formatNumber(result);
+
+  // Сохранить в историю
+  addToHistory(expression, resultStr);
 
   setExpression(`${expression} =`);
   state.current = resultStr;
@@ -183,12 +194,39 @@ function handlePercent() {
   const val = parseFloat(state.current);
   if (isNaN(val)) return;
   if (state.previous && state.operator) {
+    // X% от предыдущего числа
     state.current = formatNumber((parseFloat(state.previous) * val) / 100);
   } else {
     state.current = formatNumber(val / 100);
   }
   updateDisplay();
 }
+
+// ── История ────────────────────────────────────────────────────────────────
+function addToHistory(expression, result) {
+  state.history.push({ expression, result });
+  renderHistory();
+}
+
+function renderHistory() {
+  if (state.history.length === 0) {
+    historyEl.innerHTML = '<div class="history__inner"><p class="history__empty">Пусто</p></div>';
+    return;
+  }
+  const items = state.history.map(
+    ({ expression, result }) =>
+      `<div class="history__item"><span>${expression}</span> = ${result}</div>`
+  ).join('');
+  historyEl.innerHTML = `<div class="history__inner">${items}</div>`;
+}
+
+historyToggle.addEventListener('click', () => {
+  historyToggle.classList.toggle('open');
+  historyEl.classList.toggle('open');
+  if (historyEl.classList.contains('open') && state.history.length === 0) {
+    renderHistory();
+  }
+});
 
 // ── Обработка кликов по кнопкам ───────────────────────────────────────────
 document.querySelector('.buttons').addEventListener('click', (e) => {
@@ -199,13 +237,13 @@ document.querySelector('.buttons').addEventListener('click', (e) => {
   const value  = btn.dataset.value;
 
   switch (action) {
-    case 'digit':    inputDigit(value);     break;
-    case 'dot':      inputDot();            break;
+    case 'digit':    inputDigit(value); break;
+    case 'dot':      inputDot();        break;
     case 'operator': chooseOperator(value); break;
-    case 'equal':    handleEqual();         break;
-    case 'clear':    clearAll();            break;
-    case 'sign':     toggleSign();          break;
-    case 'percent':  handlePercent();       break;
+    case 'equal':    handleEqual();     break;
+    case 'clear':    clearAll();        break;
+    case 'sign':     toggleSign();      break;
+    case 'percent':  handlePercent();   break;
   }
 });
 
@@ -216,7 +254,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === '+')  chooseOperator('+');
   else if (e.key === '-')  chooseOperator('-');
   else if (e.key === '*')  chooseOperator('*');
-  else if (e.key === '/') { e.preventDefault(); chooseOperator('/'); }
+  else if (e.key === '/')  { e.preventDefault(); chooseOperator('/'); }
   else if (e.key === 'Enter' || e.key === '=') handleEqual();
   else if (e.key === 'Backspace') backspace();
   else if (e.key === 'Escape')    clearAll();
