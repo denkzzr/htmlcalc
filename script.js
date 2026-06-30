@@ -1,265 +1,462 @@
 /**
- * Calculator — чистый JavaScript
- * Этапы 2 и 3: базовая логика + доп. функции, обработка ошибок, история.
+ * Calculator
+ * Совместим с текущим index.html
  */
 
-// ── Состояние ──────────────────────────────────────────────────────────────
 const state = {
-  current: '0',       // текущее число на дисплее
-  previous: null,     // предыдущее число
-  operator: null,     // текущий оператор
-  waitingForSecond: false, // ждём ввода второго операнда
-  justCalculated: false,   // только что нажали «=»
-  history: [],        // история вычислений
+    current: "0",
+    previous: null,
+    operator: null,
+    waitingForSecond: false,
+    justCalculated: false,
+    history: []
 };
 
-// ── Элементы DOM ───────────────────────────────────────────────────────────
-const resultEl      = document.getElementById('result');
-const expressionEl  = document.getElementById('expression');
-const historyEl     = document.getElementById('history');
-const historyToggle = document.getElementById('historyToggle');
+const resultEl = document.getElementById("result");
+const expressionEl = document.getElementById("expression");
 
-// ── Утилиты ────────────────────────────────────────────────────────────────
-function formatNumber(value) {
-  const num = parseFloat(value);
-  if (!isFinite(num)) return value; // «Ошибка» и т.п.
-  // Ограничиваем длину, убираем лишние нули после запятой
-  const str = parseFloat(num.toPrecision(10)).toString();
-  return str;
+const keypad = document.getElementById("keypad");
+
+const historyPanel = document.getElementById("historyPanel");
+const historyList = document.getElementById("historyList");
+const historyToggle = document.getElementById("historyToggle");
+const historyClear = document.getElementById("historyClear");
+
+function format(value) {
+    if (value === "Ошибка") return value;
+
+    const number = Number(value);
+
+    if (!Number.isFinite(number))
+        return "Ошибка";
+
+    return parseFloat(number.toPrecision(12)).toString();
 }
 
 function updateDisplay() {
-  const text = formatNumber(state.current);
-  resultEl.textContent = text;
-
-  // Адаптивный размер шрифта
-  resultEl.classList.remove('small', 'xsmall');
-  if (text.length > 9) resultEl.classList.add('xsmall');
-  else if (text.length > 6) resultEl.classList.add('small');
+    resultEl.textContent = format(state.current);
 }
 
-function setExpression(text) {
-  expressionEl.textContent = text;
+function updateExpression(text = "") {
+    expressionEl.textContent = text;
 }
 
-// ── Ввод цифр ──────────────────────────────────────────────────────────────
+function clearOperatorHighlight() {
+    document
+        .querySelectorAll(".key--operator")
+        .forEach(btn => btn.classList.remove("active"));
+}
+
+function highlightOperator(op) {
+    clearOperatorHighlight();
+
+    const btn = document.querySelector(
+        `.key--operator[data-value="${op}"]`
+    );
+
+    if (btn)
+        btn.classList.add("active");
+}
+
 function inputDigit(digit) {
-  if (state.waitingForSecond) {
-    state.current = digit;
-    state.waitingForSecond = false;
-  } else if (state.justCalculated) {
-    // После «=» начинаем новое число
-    state.current = digit;
-    state.justCalculated = false;
-    state.operator = null;
-    state.previous = null;
-    setExpression('');
-  } else {
-    if (state.current === '0' && digit !== '.') {
-      state.current = digit;
-    } else {
-      if (state.current.length >= 12) return; // лимит символов
-      state.current += digit;
-    }
-  }
-  updateDisplay();
-}
 
-// ── Ввод точки ─────────────────────────────────────────────────────────────
-function inputDot() {
-  if (state.waitingForSecond) {
-    state.current = '0.';
-    state.waitingForSecond = false;
-    updateDisplay();
-    return;
-  }
-  if (state.current.includes('.')) return; // не допускаем вторую точку
-  state.current += '.';
-  updateDisplay();
-}
+    if (state.justCalculated) {
 
-// ── Выбор оператора ────────────────────────────────────────────────────────
-function chooseOperator(op) {
-  // Подсветить активный оператор
-  document.querySelectorAll('.btn--op').forEach(b => b.classList.remove('active'));
-  const btn = document.querySelector(`[data-value="${op}"]`);
-  if (btn) btn.classList.add('active');
+        state.current = digit;
 
-  const symbols = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+        state.previous = null;
+        state.operator = null;
+        state.waitingForSecond = false;
+        state.justCalculated = false;
 
-  if (state.operator && !state.waitingForSecond) {
-    // Промежуточное вычисление при цепочке операций
-    const result = calculate(parseFloat(state.previous), parseFloat(state.current), state.operator);
-    if (result === null) return;
-    state.current = formatNumber(result);
-    updateDisplay();
-    setExpression(`${state.current} ${symbols[op]}`);
-    state.previous = state.current;
-  } else {
-    state.previous = state.current;
-    setExpression(`${state.current} ${symbols[op]}`);
-  }
-
-  state.operator = op;
-  state.waitingForSecond = true;
-  state.justCalculated = false;
-}
-
-// ── Вычисление ─────────────────────────────────────────────────────────────
-function calculate(a, b, op) {
-  switch (op) {
-    case '+': return a + b;
-    case '-': return a - b;
-    case '*': return a * b;
-    case '/':
-      if (b === 0) {
-        state.current = 'Ошибка';
+        updateExpression("");
         updateDisplay();
-        setExpression('Деление на 0');
-        resetOperators();
-        return null;
-      }
-      return a / b;
-    default: return b;
-  }
+
+        return;
+    }
+
+    if (state.waitingForSecond) {
+
+        state.current = digit;
+        state.waitingForSecond = false;
+
+        updateDisplay();
+
+        return;
+    }
+
+    if (state.current === "0") {
+
+        state.current = digit;
+
+    } else {
+
+        if (state.current.length >= 15)
+            return;
+
+        state.current += digit;
+    }
+
+    updateDisplay();
 }
 
-function resetOperators() {
-  state.operator = null;
-  state.previous = null;
-  state.waitingForSecond = false;
-  document.querySelectorAll('.btn--op').forEach(b => b.classList.remove('active'));
+function inputDecimal() {
+
+    if (state.waitingForSecond) {
+
+        state.current = "0.";
+        state.waitingForSecond = false;
+
+        updateDisplay();
+
+        return;
+    }
+
+    if (state.current.includes("."))
+        return;
+
+    state.current += ".";
+
+    updateDisplay();
 }
 
-// ── Равно ──────────────────────────────────────────────────────────────────
+function calculate(a, b, op) {
+
+    switch (op) {
+
+        case "+":
+            return a + b;
+
+        case "-":
+            return a - b;
+
+        case "*":
+            return a * b;
+
+        case "/":
+
+            if (b === 0)
+                return "Ошибка";
+
+            return a / b;
+    }
+
+    return b;
+}
+
+function chooseOperator(op) {
+
+    highlightOperator(op);
+
+    if (
+        state.operator &&
+        !state.waitingForSecond
+    ) {
+
+        const result = calculate(
+            Number(state.previous),
+            Number(state.current),
+            state.operator
+        );
+
+        if (result === "Ошибка") {
+
+            state.current = "Ошибка";
+
+            updateExpression("Деление на 0");
+            updateDisplay();
+
+            state.previous = null;
+            state.operator = null;
+            state.waitingForSecond = false;
+
+            clearOperatorHighlight();
+
+            return;
+        }
+
+        state.current = format(result);
+        state.previous = state.current;
+
+    } else {
+
+        state.previous = state.current;
+    }
+
+    const symbols = {
+        "+": "+",
+        "-": "−",
+        "*": "×",
+        "/": "÷"
+    };
+
+    updateExpression(
+        `${state.previous} ${symbols[op]}`
+    );
+
+    state.operator = op;
+    state.waitingForSecond = true;
+    state.justCalculated = false;
+
+    updateDisplay();
+}
+
 function handleEqual() {
-  if (!state.operator || state.waitingForSecond) return;
 
-  const a = parseFloat(state.previous);
-  const b = parseFloat(state.current);
-  const symbols = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+    if (
+        !state.operator ||
+        state.waitingForSecond
+    )
+        return;
 
-  const expression = `${formatNumber(a)} ${symbols[state.operator]} ${formatNumber(b)}`;
-  const result = calculate(a, b, state.operator);
-  if (result === null) return; // ошибка уже показана
+    const symbols = {
+        "+": "+",
+        "-": "−",
+        "*": "×",
+        "/": "÷"
+    };
 
-  const resultStr = formatNumber(result);
+    const expression =
+        `${format(state.previous)} ${symbols[state.operator]} ${format(state.current)}`;
 
-  // Сохранить в историю
-  addToHistory(expression, resultStr);
+    const result = calculate(
+        Number(state.previous),
+        Number(state.current),
+        state.operator
+    );
 
-  setExpression(`${expression} =`);
-  state.current = resultStr;
-  updateDisplay();
+    if (result === "Ошибка") {
 
-  state.justCalculated = true;
-  resetOperators();
+        state.current = "Ошибка";
+
+        updateExpression("Деление на 0");
+
+        updateDisplay();
+
+        state.previous = null;
+        state.operator = null;
+        state.waitingForSecond = false;
+
+        clearOperatorHighlight();
+
+        return;
+    }
+
+    state.current = format(result);
+
+    state.history.unshift(
+        `${expression} = ${state.current}`
+    );
+
+    renderHistory();
+
+    updateExpression(expression + " =");
+
+    state.previous = null;
+    state.operator = null;
+    state.waitingForSecond = false;
+    state.justCalculated = true;
+
+    clearOperatorHighlight();
+
+    updateDisplay();
 }
 
-// ── Очистка ────────────────────────────────────────────────────────────────
 function clearAll() {
-  state.current = '0';
-  state.previous = null;
-  state.operator = null;
-  state.waitingForSecond = false;
-  state.justCalculated = false;
-  setExpression('');
-  updateDisplay();
-  resetOperators();
-}
 
-// ── Backspace ──────────────────────────────────────────────────────────────
+    state.current = "0";
+    state.previous = null;
+    state.operator = null;
+
+    state.waitingForSecond = false;
+    state.justCalculated = false;
+
+    clearOperatorHighlight();
+
+    updateExpression("");
+    updateDisplay();
+}
 function backspace() {
-  if (state.justCalculated || state.waitingForSecond) return;
-  if (state.current.length === 1 || state.current === 'Ошибка') {
-    state.current = '0';
-  } else {
-    state.current = state.current.slice(0, -1);
-    if (state.current === '-') state.current = '0';
-  }
-  updateDisplay();
+
+    if (
+        state.waitingForSecond ||
+        state.justCalculated
+    )
+        return;
+
+    if (
+        state.current === "Ошибка" ||
+        state.current.length === 1
+    ) {
+
+        state.current = "0";
+
+    } else {
+
+        state.current =
+            state.current.slice(0, -1);
+
+        if (state.current === "-")
+            state.current = "0";
+    }
+
+    updateDisplay();
 }
 
-// ── Смена знака ────────────────────────────────────────────────────────────
-function toggleSign() {
-  if (state.current === '0' || state.current === 'Ошибка') return;
-  state.current = state.current.startsWith('-')
-    ? state.current.slice(1)
-    : '-' + state.current;
-  updateDisplay();
-}
-
-// ── Процент ────────────────────────────────────────────────────────────────
 function handlePercent() {
-  const val = parseFloat(state.current);
-  if (isNaN(val)) return;
-  if (state.previous && state.operator) {
-    // X% от предыдущего числа
-    state.current = formatNumber((parseFloat(state.previous) * val) / 100);
-  } else {
-    state.current = formatNumber(val / 100);
-  }
-  updateDisplay();
-}
 
-// ── История ────────────────────────────────────────────────────────────────
-function addToHistory(expression, result) {
-  state.history.push({ expression, result });
-  renderHistory();
+    if (state.current === "Ошибка")
+        return;
+
+    if (
+        state.previous &&
+        state.operator
+    ) {
+
+        state.current = format(
+            Number(state.previous) *
+            Number(state.current) /
+            100
+        );
+
+    } else {
+
+        state.current = format(
+            Number(state.current) / 100
+        );
+    }
+
+    updateDisplay();
 }
 
 function renderHistory() {
-  if (state.history.length === 0) {
-    historyEl.innerHTML = '<div class="history__inner"><p class="history__empty">Пусто</p></div>';
-    return;
-  }
-  const items = state.history.map(
-    ({ expression, result }) =>
-      `<div class="history__item"><span>${expression}</span> = ${result}</div>`
-  ).join('');
-  historyEl.innerHTML = `<div class="history__inner">${items}</div>`;
+
+    if (state.history.length === 0) {
+
+        historyList.innerHTML =
+            '<li class="history__empty">Пока пусто</li>';
+
+        return;
+    }
+
+    historyList.innerHTML =
+        state.history
+            .map(item => `<li>${item}</li>`)
+            .join("");
 }
 
-historyToggle.addEventListener('click', () => {
-  historyToggle.classList.toggle('open');
-  historyEl.classList.toggle('open');
-  if (historyEl.classList.contains('open') && state.history.length === 0) {
+historyToggle.addEventListener("click", () => {
+
+    historyPanel.classList.toggle("is-open");
+
     renderHistory();
-  }
 });
 
-// ── Обработка кликов по кнопкам ───────────────────────────────────────────
-document.querySelector('.buttons').addEventListener('click', (e) => {
-  const btn = e.target.closest('.btn');
-  if (!btn) return;
+historyClear.addEventListener("click", () => {
 
-  const action = btn.dataset.action;
-  const value  = btn.dataset.value;
+    state.history = [];
 
-  switch (action) {
-    case 'digit':    inputDigit(value); break;
-    case 'dot':      inputDot();        break;
-    case 'operator': chooseOperator(value); break;
-    case 'equal':    handleEqual();     break;
-    case 'clear':    clearAll();        break;
-    case 'sign':     toggleSign();      break;
-    case 'percent':  handlePercent();   break;
-  }
+    renderHistory();
 });
 
-// ── Клавиатурная поддержка ────────────────────────────────────────────────
-document.addEventListener('keydown', (e) => {
-  if (e.key >= '0' && e.key <= '9') inputDigit(e.key);
-  else if (e.key === '.')  inputDot();
-  else if (e.key === '+')  chooseOperator('+');
-  else if (e.key === '-')  chooseOperator('-');
-  else if (e.key === '*')  chooseOperator('*');
-  else if (e.key === '/')  { e.preventDefault(); chooseOperator('/'); }
-  else if (e.key === 'Enter' || e.key === '=') handleEqual();
-  else if (e.key === 'Backspace') backspace();
-  else if (e.key === 'Escape')    clearAll();
-  else if (e.key === '%')         handlePercent();
+keypad.addEventListener("click", e => {
+
+    const button = e.target.closest(".key");
+
+    if (!button)
+        return;
+
+    const action = button.dataset.action;
+    const value = button.dataset.value;
+
+    switch (action) {
+
+        case "digit":
+            inputDigit(value);
+            break;
+
+        case "decimal":
+            inputDecimal();
+            break;
+
+        case "operator":
+            chooseOperator(value);
+            break;
+
+        case "equals":
+            handleEqual();
+            break;
+
+        case "clear":
+            clearAll();
+            break;
+
+        case "backspace":
+            backspace();
+            break;
+
+        case "percent":
+            handlePercent();
+            break;
+    }
 });
 
-// ── Инициализация ─────────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+
+    if (
+        e.key >= "0" &&
+        e.key <= "9"
+    ) {
+
+        inputDigit(e.key);
+        return;
+    }
+
+    switch (e.key) {
+
+        case ".":
+
+        case ",":
+            inputDecimal();
+            break;
+
+        case "+":
+            chooseOperator("+");
+            break;
+
+        case "-":
+            chooseOperator("-");
+            break;
+
+        case "*":
+            chooseOperator("*");
+            break;
+
+        case "/":
+            e.preventDefault();
+            chooseOperator("/");
+            break;
+
+        case "Enter":
+
+        case "=":
+            handleEqual();
+            break;
+
+        case "Backspace":
+            e.preventDefault();
+            backspace();
+            break;
+
+        case "Escape":
+            clearAll();
+            break;
+
+        case "%":
+            handlePercent();
+            break;
+    }
+});
+
 updateDisplay();
+renderHistory();
